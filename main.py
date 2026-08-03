@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
 
-# إعداد سيرفر Flask وهمي لإبقاء Render سعيداً
+# إعداد سيرفر Flask وهمي لإبقاء السيرفر نشطاً
 app_web = Flask(__name__)
 
 @app_web.route('/')
@@ -22,7 +22,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 TOKEN = os.getenv("BOT_TOKEN")
 MAX_DURATION = 420  # 7 دقائق
-MAX_FILESIZE = 20 * 1024 * 1024  # 20 ميجابايت بالبايت
+MAX_FILESIZE = 20 * 1024 * 1024  # 20 ميجابايت
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("أهلاً بك! 🤖\nأرسل لي أي رابط فيديو من منصات التواصل، وسأقوم بتحميله لك بشرط ألا تتجاوز مدته 7 دقائق وحجمه 20 ميجابايت.")
@@ -33,10 +33,27 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     file_path = None
     try:
+        # إعدادات yt-dlp المحسّنة للالتفاف على حظر يوتيوب وإنستغرام
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            # اختيار أسهل صيغة جاهزة مدمجة لتفادي مشاكل FFmpeg والحجم الكبير
+            'format': 'best[ext=mp4]/best',
             'outtmpl': 'video_%(id)s.%(ext)s',
             'max_filesize': MAX_FILESIZE,
+            'quiet': True,
+            'no_warnings': True,
+            # التمويه كأن الطلب قادم من متصفح محمول عادي
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+            },
+            # خيارات خاصة لتجاوز حظر يوتيوب بالسيرفرات
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
+            },
+            'nocheckcertificate': True,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
