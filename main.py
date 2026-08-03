@@ -37,12 +37,14 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': 'video_%(id)s.%(ext)s',
             'max_filesize': MAX_FILESIZE,
-            # تجاوز حظر السيرفرات والتظاهر بطلب الفيديو من تطبيق جوال
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios']
+                    'player_client': ['android_creator', 'android', 'ios'],
                 }
             },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
