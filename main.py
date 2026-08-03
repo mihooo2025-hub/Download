@@ -22,9 +22,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 TOKEN = os.getenv("BOT_TOKEN")
 MAX_DURATION = 420  # 7 دقائق
+MAX_FILESIZE = 20 * 1024 * 1024  # 20 ميجابايت بالبايت
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("أهلاً بك! 🤖\nأرسل لي أي رابط فيديو من منصات التواصل، وسأقوم بتحميله لك بشرط ألا تتجاوز مدته 7 دقائق.")
+    await update.message.reply_text("أهلاً بك! 🤖\nأرسل لي أي رابط فيديو من منصات التواصل، وسأقوم بتحميله لك بشرط ألا تتجاوز مدته 7 دقائق وحجمه 20 ميجابايت.")
 
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
@@ -35,15 +36,27 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': 'video_%(id)s.%(ext)s',
-            'max_filesize': 50 * 1024 * 1024,
+            'max_filesize': MAX_FILESIZE,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             duration = info.get('duration', 0)
+            filesize = info.get('filesize') or info.get('filesize_approx')
 
+            # التحقق من المدة (أقل من 7 دقائق)
             if duration and duration > MAX_DURATION:
                 await status_msg.edit_text("❌ عذراً، لا يمكن تحميل الفيديو لأن مدته تتجاوز 7 دقائق!")
+                return
+
+            # التحقق من الحجم (أقل من 20 ميجابايت)
+            if filesize and filesize > MAX_FILESIZE:
+                size_mb = round(filesize / (1024 * 1024), 2)
+                await status_msg.edit_text(
+                    f"⚠️ **عذراً، لا يمكن تحميل هذا الفيديو!**\n\n"
+                    f"📐 حجم الفيديو: `{size_mb} MB`\n"
+                    f"⛔ الحد الأقصى المسموح به: `20 MB`"
+                )
                 return
 
             await status_msg.edit_text("📥 جاري تحميل الفيديو إلى السيرفر...")
