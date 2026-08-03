@@ -37,6 +37,12 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': 'video_%(id)s.%(ext)s',
             'max_filesize': MAX_FILESIZE,
+            # تجاوز حظر السيرفرات والتظاهر بطلب الفيديو من تطبيق جوال
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios']
+                }
+            },
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
