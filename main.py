@@ -2,7 +2,6 @@ import os
 import time
 import shutil
 import logging
-import imageio_ffmpeg
 from threading import Thread
 from flask import Flask
 import telebot
@@ -27,7 +26,6 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# دالة البحث عن ملف الكوكيز ونسخه لمجلد قابل للكتابة لتفادي خطأ Read-only
 def get_cookie_path():
     possible_paths = [
         '/etc/secrets/Download',
@@ -52,25 +50,24 @@ def get_cookie_path():
 
 COOKIE_PATH = get_cookie_path()
 
-# جلب مسار ffmpeg التلقائي من مكتبة imageio_ffmpeg
-FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
-logging.info(f"✅ FFMPEG PATH LOCATED AT: {FFMPEG_PATH}")
-
-# خيارات yt-dlp مع تفعيل دمج ffmpeg
+# خيارات سحرية تتجاوز حظر يوتيوب ولا تتطلب ffmpeg نهائياً
 YDL_OPTS = {
-    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-    'ffmpeg_location': FFMPEG_PATH,  # إخبار yt-dlp بمسار ffmpeg المثبت
+    # طلب ملف سينجل مدمج من الأصل (فيديو + صوت) أو أحدث صيغة متاحة للموبايل
+    'format': 'best[vcodec!=none][acodec!=none]/best',
     'quiet': True,
     'no_warnings': True,
+    'noplaylist': True,
     'outtmpl': '%(title)s.%(ext)s',
     'cookiefile': COOKIE_PATH,
+    # خداع يوتيوب بأن الطلب قادم من تطبيق iOS أو TV لتجاوز حظر IP السيرفرات
     'extractor_args': {
         'youtube': {
-            'player_client': ['web', 'mweb', 'android'],
+            'player_client': ['ios', 'android', 'mweb'],
+            'skip': ['hls', 'dash'] # تخطي الصيغ المقسمة التي تحتاج ffmpeg
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
     }
 }
 
