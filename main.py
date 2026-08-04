@@ -50,20 +50,22 @@ def get_cookie_path():
 
 COOKIE_PATH = get_cookie_path()
 
-# صيغة تتوافق مع السيرفرات التي لا تحتوي على ffmpeg مدمج
+# خيارات yt-dlp مرنة جداً لتجاوز قيود يوتيوب والسيرفرات
 YDL_OPTS = {
-    'format': 'best[vcodec!=none][acodec!=none]/b/best',
+    # يجرب أفضل صيغة مدمجة، فإن لم يجد ياخذ أفضل فيديو متاح، أو أي صيغة متوفرة إطلاقاً
+    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/worst',
     'quiet': True,
     'no_warnings': True,
+    'check_formats': False, # يتجاوز الفحص الصارم للصيغ لتجنب خطأ Requested format
     'outtmpl': '%(title)s.%(ext)s',
     'cookiefile': COOKIE_PATH,
     'extractor_args': {
         'youtube': {
-            'player_client': ['tv', 'android_vr', 'ios', 'mweb'],
+            'player_client': ['web', 'mweb', 'android', 'ios'],
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     }
 }
 
@@ -127,5 +129,5 @@ if __name__ == "__main__":
 
         except Exception as e:
             logging.error(f"⚠️ Polling error occurred: {e}")
-            logging.info("🔄 Reconnecting in 5 seconds...")
+            logging.info("🔄 Reconnecting in 5 meconds...")
             time.sleep(5)
