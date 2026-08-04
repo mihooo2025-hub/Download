@@ -53,9 +53,9 @@ def get_cookie_path():
 
 COOKIE_PATH = get_cookie_path()
 
-# خيارات yt-dlp للالتفاف على حظر سيرفرات Render وتحديد الهوية كأجهزة مختلفة
+# خيارات yt-dlp المحدثة لدعم كافة صيغ يوتيوب وتجنب خطأ Requested format is not available
 YDL_OPTS = {
-    'format': 'best',
+    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best',
     'quiet': True,
     'no_warnings': True,
     'outtmpl': '%(title)s.%(ext)s',
