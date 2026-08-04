@@ -23,10 +23,13 @@ def run_flask():
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ضع_التوكن_هنا_إن_لم_تستخدم_متغيرات_البيئة")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# التحقق من مسار ملف الكوكيز (سواء في Secret Files على Render أو مجلد محلي)
-COOKIE_PATH = '/etc/secrets/cookies.txt'
+# تحديد مسار ملف الكوكيز باسم Download كما هو محدد في Render
+COOKIE_PATH = '/etc/secrets/Download'
 if not os.path.exists(COOKIE_PATH):
-    COOKIE_PATH = 'cookies.txt'
+    # محاولة مطابقة الاسم بالحروف الصغيرة في حال وجود اختلاف بالحالة
+    COOKIE_PATH = '/etc/secrets/download'
+    if not os.path.exists(COOKIE_PATH):
+        COOKIE_PATH = 'Download' # للمحيط المحلي
 
 # إعدادات yt-dlp المتطورة
 YDL_OPTS = {
