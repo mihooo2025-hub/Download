@@ -20,37 +20,39 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 # توكن البوت الخاص بك
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ضع_التوكن_هنا_إن_لم_تستخدم_متغيرات_البيئة")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "ضع_التوكن_هنا_إن_لم_تستخدم_Environment_Variables")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# تحديد مسار ملف الكوكيز باسم Download كما هو محدد في Render
+# مسار ملف الكوكيز المرفوع في Secret Files على Render
 COOKIE_PATH = '/etc/secrets/Download'
 if not os.path.exists(COOKIE_PATH):
-    # محاولة مطابقة الاسم بالحروف الصغيرة في حال وجود اختلاف بالحالة
     COOKIE_PATH = '/etc/secrets/download'
     if not os.path.exists(COOKIE_PATH):
-        COOKIE_PATH = 'Download' # للمحيط المحلي
+        COOKIE_PATH = 'Download'
 
-# إعدادات yt-dlp المتطورة
+# إعدادات yt-dlp المتطورة لتجاوز حجب IP الخوادم
 YDL_OPTS = {
-    'format': 'best',
+    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
     'quiet': True,
     'no_warnings': True,
     'outtmpl': '%(title)s.%(ext)s',
     'cookiefile': COOKIE_PATH if os.path.exists(COOKIE_PATH) else None,
+    # استخدام مشغلات الأجهزة الذكية (TV/VR) لتفادي كشف السيرفرات السحابية
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web'],
+            'player_client': ['tv', 'android_vr', 'ios', 'mweb'],
+            'player_skip': ['webpage', 'configs'],
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/537.42 (KHTML, like Gecko) Safari/537.42',
+        'Accept-Language': 'en-US,en;q=0.9',
     }
 }
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "مرحباً بك! أرسل لي رابط فيديو من يوتيوب، إنستغرام، أو تيك توك وسأقوم بتحميله لك.")
+    bot.reply_to(message, "مرحباً بك! أرسل لي رابط الفيديو وسأقوم بتحميله لك.")
 
 @bot.message_handler(func=lambda message: True)
 def download_video(message):
@@ -59,7 +61,7 @@ def download_video(message):
     if not (url.startswith("http://") or url.startswith("https://")):
         return
 
-    msg = bot.reply_to(message, "⏳ جاري جلب الفيديو والتحميل...")
+    msg = bot.reply_to(message, "⏳ جاري التحميل، يرجى الانتظار...")
     
     file_path = None
     try:
@@ -77,14 +79,11 @@ def download_video(message):
         bot.edit_message_text(f"❌ حدث خطأ أثناء التحميل:\n`{str(e)}`", message.chat.id, msg.message_id, parse_mode="Markdown")
         
     finally:
-        # حذف الفيديو بعد الإرسال لتوفير المساحة
+        # حذف الفيديو بعد الإرسال لتوفير المساحة على السيرفر
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
 
 if __name__ == "__main__":
-    # تشغيل Flask في Thread منفصل
     t = Thread(target=run_flask)
     t.start()
-    
-    # تشغيل البوت
     bot.polling(non_stop=True)
