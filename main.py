@@ -5,10 +5,8 @@ from flask import Flask
 import telebot
 from yt_dlp import YoutubeDL
 
-# إعداد التسجيل (Logging)
 logging.basicConfig(level=logging.INFO)
 
-# إنشاء تطبيق Flask لإبقاء السيرفر نشطاً على Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -19,34 +17,43 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# توكن البوت الخاص بك
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ضع_التوكن_هنا_إن_لم_تستخدم_Environment_Variables")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "ضع_التوكن_هنا")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# مسار ملف الكوكيز المرفوع في Secret Files على Render
-COOKIE_PATH = '/etc/secrets/Download'
-if not os.path.exists(COOKIE_PATH):
-    COOKIE_PATH = '/etc/secrets/download'
-    if not os.path.exists(COOKIE_PATH):
-        COOKIE_PATH = 'Download'
+# البحث الآلي عن ملف الكوكيز بغض النظر عن حالة الأحرف أو الامتداد
+def get_cookie_path():
+    possible_paths = [
+        '/etc/secrets/Download',
+        '/etc/secrets/download',
+        '/etc/secrets/Download.txt',
+        '/etc/secrets/download.txt',
+        '/etc/secrets/cookies.txt',
+        'Download',
+        'download'
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            logging.info(f"✅ FOUND COOKIE FILE AT: {path}")
+            return path
+    logging.warning("⚠️ NO COOKIE FILE FOUND IN /etc/secrets/")
+    return None
 
-# إعدادات yt-dlp المتطورة لتجاوز حجب IP الخوادم
+COOKIE_PATH = get_cookie_path()
+
+# إعدادات yt-dlp
 YDL_OPTS = {
-    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+    'format': 'best',
     'quiet': True,
     'no_warnings': True,
     'outtmpl': '%(title)s.%(ext)s',
-    'cookiefile': COOKIE_PATH if os.path.exists(COOKIE_PATH) else None,
-    # استخدام مشغلات الأجهزة الذكية (TV/VR) لتفادي كشف السيرفرات السحابية
+    'cookiefile': COOKIE_PATH,
     'extractor_args': {
         'youtube': {
-            'player_client': ['tv', 'android_vr', 'ios', 'mweb'],
-            'player_skip': ['webpage', 'configs'],
+            'player_client': ['android', 'ios', 'web'],
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/537.42 (KHTML, like Gecko) Safari/537.42',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     }
 }
 
@@ -65,7 +72,12 @@ def download_video(message):
     
     file_path = None
     try:
-        with YoutubeDL(YDL_OPTS) as ydl:
+        # إعادة فحص الملف قبل كل عملية تحميل للتأكد
+        current_cookie = get_cookie_path()
+        opts = YDL_OPTS.copy()
+        opts['cookiefile'] = current_cookie
+
+        with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
             
@@ -79,7 +91,6 @@ def download_video(message):
         bot.edit_message_text(f"❌ حدث خطأ أثناء التحميل:\n`{str(e)}`", message.chat.id, msg.message_id, parse_mode="Markdown")
         
     finally:
-        # حذف الفيديو بعد الإرسال لتوفير المساحة على السيرفر
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
 
