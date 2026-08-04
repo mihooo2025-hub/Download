@@ -2,6 +2,7 @@ import os
 import time
 import shutil
 import logging
+import imageio_ffmpeg
 from threading import Thread
 from flask import Flask
 import telebot
@@ -50,31 +51,40 @@ def get_cookie_path():
 
 COOKIE_PATH = get_cookie_path()
 
-# خيارات سحرية تتجاوز حظر يوتيوب ولا تتطلب ffmpeg نهائياً
+try:
+    FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+    logging.info(f"✅ FFMPEG PATH LOCATED AT: {FFMPEG_PATH}")
+except Exception as e:
+    FFMPEG_PATH = None
+    logging.error(f"⚠️ Could not load ffmpeg binary: {e}")
+
+# خيارات مرنة وشاملة لـ (YouTube, Instagram, TikTok)
 YDL_OPTS = {
-    # طلب ملف سينجل مدمج من الأصل (فيديو + صوت) أو أحدث صيغة متاحة للموبايل
-    'format': 'best[vcodec!=none][acodec!=none]/best',
+    # يحاول جلب أفضل جودة مدمجة، وإذا فشل يأخذ أي صيغة متاحة تعمل
+    'format': 'b/bestvideo+bestaudio/best',
     'quiet': True,
     'no_warnings': True,
     'noplaylist': True,
-    'outtmpl': '%(title)s.%(ext)s',
+    'outtmpl': '/tmp/%(title)s.%(ext)s',
     'cookiefile': COOKIE_PATH,
-    # خداع يوتيوب بأن الطلب قادم من تطبيق iOS أو TV لتجاوز حظر IP السيرفرات
     'extractor_args': {
         'youtube': {
-            'player_client': ['ios', 'android', 'mweb'],
-            'skip': ['hls', 'dash'] # تخطي الصيغ المقسمة التي تحتاج ffmpeg
+            'player_client': ['android', 'ios', 'web'],
+            'skip': ['hls', 'dash']
         }
     },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     }
 }
+
+if FFMPEG_PATH:
+    YDL_OPTS['ffmpeg_location'] = FFMPEG_PATH
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     logging.info(f"Received start command from {message.from_user.id}")
-    bot.reply_to(message, "مرحباً بك! البوت يعمل الآن وجاهز لتحميل الفيديوهات. أرسل رابط الفيديو:")
+    bot.reply_to(message, "مرحباً بك! البوت جاهز لتحميل الفيديوهات من يوتيوب، تيك توك، وإنستغرام. أرسل الرابط مباشرة:")
 
 @bot.message_handler(func=lambda message: True)
 def download_video(message):
@@ -89,7 +99,8 @@ def download_video(message):
     try:
         current_cookie = get_cookie_path()
         opts = YDL_OPTS.copy()
-        opts['cookiefile'] = current_cookie
+        if current_cookie:
+            opts['cookiefile'] = current_cookie
 
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -106,7 +117,10 @@ def download_video(message):
         
     finally:
         if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     t = Thread(target=run_flask)
