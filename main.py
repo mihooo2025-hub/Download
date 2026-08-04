@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
 
-# إعداد سيرفر Flask وهمي لإبقاء السيرفر نشطاً
+# إعداد سيرفر Flask وهمي لإبقاء Render نشطاً
 app_web = Flask(__name__)
 
 @app_web.route('/')
@@ -33,28 +33,29 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     file_path = None
     try:
-        # إعدادات yt-dlp المحسّنة للالتفاف على حظر يوتيوب وإنستغرام
+        # إعدادات yt-dlp وفق توصيات تجاوز حظر السيرفرات
         ydl_opts = {
-            # اختيار أسهل صيغة جاهزة مدمجة لتفادي مشاكل FFmpeg والحجم الكبير
             'format': 'best[ext=mp4]/best',
             'outtmpl': 'video_%(id)s.%(ext)s',
             'max_filesize': MAX_FILESIZE,
             'quiet': True,
             'no_warnings': True,
-            # التمويه كأن الطلب قادم من متصفح محمول عادي
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-            },
-            # خيارات خاصة لتجاوز حظر يوتيوب بالسيرفرات
+            # حصر العميل على android وتجاوز فحوصات يوتيوب
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web'],
+                    'player_client': ['android'],
+                    'player_skip': ['webpage'],
+                },
+                'youtubetab': {
+                    'skip': ['authcheck'],
                 }
             },
             'nocheckcertificate': True,
         }
+
+        # استخدام ملف الكوكيز إذا كان موجوداً في مجلد المشروع
+        if os.path.exists('cookies.txt'):
+            ydl_opts['cookiefile'] = 'cookies.txt'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -98,10 +99,8 @@ def main():
         print("خطأ: لم يتم ضبط BOT_TOKEN!")
         return
 
-    # تشغيل Flask في مسار جانبي (Thread)
     Thread(target=run_flask, daemon=True).start()
 
-    # زيادة مهلة الاتصال لمنع أخطاء TimedOut
     application = (
         Application.builder()
         .token(TOKEN)
