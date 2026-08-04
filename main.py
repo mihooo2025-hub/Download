@@ -1,12 +1,15 @@
 import os
+import time
 import logging
 from threading import Thread
 from flask import Flask
 import telebot
 from yt_dlp import YoutubeDL
 
+# إعداد التسجيل (Logging) لمتابعة حالة البوت في Render
 logging.basicConfig(level=logging.INFO)
 
+# إنشاء تطبيق Flask لإبقاء الخدمة نشطة على Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -17,17 +20,19 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ضع_التوكن_هنا")
+# جلب توكن البوت من متغيرات البيئة
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+if not BOT_TOKEN:
+    logging.error("❌ BOT_TOKEN environment variable is missing!")
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# البحث الآلي عن ملف الكوكيز بغض النظر عن حالة الأحرف أو الامتداد
+# دالة البحث عن ملف الكوكيز في كافة المسارات المحتملة داخل Secret Files
 def get_cookie_path():
     possible_paths = [
         '/etc/secrets/Download',
         '/etc/secrets/download',
         '/etc/secrets/Download.txt',
-        '/etc/secrets/download.txt',
-        '/etc/secrets/cookies.txt',
         'Download',
         'download'
     ]
@@ -40,7 +45,7 @@ def get_cookie_path():
 
 COOKIE_PATH = get_cookie_path()
 
-# إعدادات yt-dlp
+# خيارات yt-dlp للالتفاف على حظر سيرفرات Render وتحديد الهوية كأجهزة مختلفة
 YDL_OPTS = {
     'format': 'best',
     'quiet': True,
@@ -49,7 +54,7 @@ YDL_OPTS = {
     'cookiefile': COOKIE_PATH,
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'ios', 'web'],
+            'player_client': ['tv', 'android_vr', 'ios', 'mweb'],
         }
     },
     'http_headers': {
@@ -57,22 +62,24 @@ YDL_OPTS = {
     }
 }
 
+# الاستجابة لأوامر Start و Help
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "مرحباً بك! أرسل لي رابط الفيديو وسأقوم بتحميله لك.")
+    logging.info(f"Received start command from {message.from_user.id}")
+    bot.reply_to(message, "مرحباً بك! البوت يعمل الآن وجاهز لتحميل الفيديوهات. أرسل رابط الفيديو:")
 
+# معالجة روابط التحميل
 @bot.message_handler(func=lambda message: True)
 def download_video(message):
     url = message.text.strip()
-    
     if not (url.startswith("http://") or url.startswith("https://")):
         return
 
+    logging.info(f"Processing URL: {url}")
     msg = bot.reply_to(message, "⏳ جاري التحميل، يرجى الانتظار...")
     
     file_path = None
     try:
-        # إعادة فحص الملف قبل كل عملية تحميل للتأكد
         current_cookie = get_cookie_path()
         opts = YDL_OPTS.copy()
         opts['cookiefile'] = current_cookie
@@ -91,10 +98,35 @@ def download_video(message):
         bot.edit_message_text(f"❌ حدث خطأ أثناء التحميل:\n`{str(e)}`", message.chat.id, msg.message_id, parse_mode="Markdown")
         
     finally:
+        # حذف الملف من السيرفر بعد الإرسال لتوفير المساحة
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
 
 if __name__ == "__main__":
+    # تشغيل سيرفر Flask في الخلفية
     t = Thread(target=run_flask)
+    t.daemon = True
     t.start()
-    bot.polling(non_stop=True)
+    
+    # حلقة حماية ذكية للحفاظ على الاتصال تلقائياً حتى عند حدوث أخطاء شبكة أو Timeout
+    while True:
+        try:
+            try:
+                bot.remove_webhook()
+            except Exception:
+                pass
+
+            logging.info("🤖 Bot polling started successfully...")
+            
+            # زيادة مهلات الاتصال لمنع انقطاع urllib3
+            bot.polling(
+                non_stop=True, 
+                skip_pending=True, 
+                timeout=90, 
+                long_polling_timeout=90
+            )
+
+        except Exception as e:
+            logging.error(f"⚠️ Polling error occurred: {e}")
+            logging.info("🔄 Reconnecting in 5 seconds...")
+            time.sleep(5)
