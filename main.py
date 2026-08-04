@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import logging
 from threading import Thread
 from flask import Flask
@@ -27,7 +28,7 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# دالة البحث عن ملف الكوكيز في كافة المسارات المحتملة داخل Secret Files
+# دالة البحث عن ملف الكوكيز ونسخه لمجلد قابل للكتابة لتفادي خطأ Read-only
 def get_cookie_path():
     possible_paths = [
         '/etc/secrets/Download',
@@ -38,8 +39,15 @@ def get_cookie_path():
     ]
     for path in possible_paths:
         if os.path.exists(path):
-            logging.info(f"✅ FOUND COOKIE FILE AT: {path}")
-            return path
+            tmp_cookie_path = '/tmp/Download'
+            try:
+                shutil.copy(path, tmp_cookie_path)
+                logging.info(f"✅ COPIED COOKIE FILE FROM {path} TO {tmp_cookie_path}")
+                return tmp_cookie_path
+            except Exception as e:
+                logging.error(f"Failed to copy cookie file: {e}")
+                return path
+                
     logging.warning("⚠️ NO COOKIE FILE FOUND IN /etc/secrets/")
     return None
 
